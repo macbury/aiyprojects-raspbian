@@ -9,6 +9,7 @@ import RPi.GPIO as GPIO
 
 import paho.mqtt.client as mqtt
 from ruamel.yaml import YAML
+from rpi_rf import RFDevice
 
 logger = logging.getLogger('led')
 
@@ -21,15 +22,30 @@ CONFIG_FILES = [
 
 logger.info("Loading config: " + MQTT_CONFIG_FILE)
 MQTT_CONFIG = YAML(typ='safe').load(open(MQTT_CONFIG_FILE))
+RF_CONFIG = MQTT_CONFIG['rf_switch']
 
-def prepare_client():
+def prepare_client(rfdevice):
   client = mqtt.Client()
   client.enable_logger(logger)
   client.username_pw_set(MQTT_CONFIG['username'], MQTT_CONFIG['password'])
   logger.info("Connecting to: " + MQTT_CONFIG['host'] + " at " + str(MQTT_CONFIG['port']))
   client.connect(MQTT_CONFIG['host'], MQTT_CONFIG['port'], 60)
+
+  def on_connect(client, userdata, flags, rc):
+    logger.info("Subscribing to topic: " + RF_CONFIG['topic'])
+    client.subscribe(RF_CONFIG['topic'])
+
+  def on_message(client, userdata, msg):
+    if msg.topic == RF_CONFIG['topic']:
+      rfdevice.tx_code(int(msg.payload), RF_CONFIG['protocol'], RF_CONFIG['pulselength'])
+    logger.info("Got message")
+    logger.info(msg.payload)
+
+  client.on_connect = on_connect
+  client.on_message = on_message
+
+  logger.info("Starting mqtt loop...")
   client.loop_start()
-  logger.info("Starting loop...")
   return client
 
 def main():
@@ -60,9 +76,11 @@ def main():
   }
   try:
     GPIO.setmode(GPIO.BCM)
+    rfdevice = RFDevice(RF_CONFIG['gpio'])
+    rfdevice.enable_tx()
 
     led = aiy.voicehat.get_led()
-    client = prepare_client()
+    client = prepare_client(rfdevice)
     logger.info("Default state sending: " + MQTT_CONFIG['topic'])
     client.publish(MQTT_CONFIG['topic'], 'ready', 2)
 
@@ -86,6 +104,7 @@ def main():
     pass
   finally:
     led.stop()
+    rfdevice.cleanup()
     GPIO.cleanup()
 
 

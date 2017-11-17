@@ -63,6 +63,7 @@ OLD_SERVICE_CREDENTIALS = os.path.expanduser('~/credentials.json')
 ASSISTANT_CREDENTIALS = (
     os.path.join(VR_CACHE_DIR, 'assistant_credentials.json')
 )
+print(ASSISTANT_CREDENTIALS)
 
 # Where the locale/language bundles are stored
 LOCALE_DIR = os.path.realpath(
