@@ -5,7 +5,8 @@ password: ""
 topic: 'home/living_room/google_home'
 
 rf_switch:
-  topic: 'home/living_room/rf_emitter'
+  command_topic: 'home/living_room/rf_emitter/set'
+  state_topic: 'home/living_room/rf_emitter'
   gpio: 3
   pulselength: 321
   protocol: 1

@@ -3,7 +3,7 @@
 import logging
 import os
 import time
-
+import json
 import aiy.voicehat
 import RPi.GPIO as GPIO
 
@@ -24,26 +24,37 @@ logger.info("Loading config: " + MQTT_CONFIG_FILE)
 MQTT_CONFIG = YAML(typ='safe').load(open(MQTT_CONFIG_FILE))
 RF_CONFIG = MQTT_CONFIG['rf_switch']
 
+RF_STATES = {}
+
+def send_state(client):
+  states = json.dumps(RF_STATES)
+  logger.info("Sending states " + states)
+  client.publish(topic=RF_CONFIG['state_topic'], payload=states, retain=True, qos=1)
+
 def prepare_client(rfdevice):
   client = mqtt.Client()
   client.enable_logger(logger)
   client.username_pw_set(MQTT_CONFIG['username'], MQTT_CONFIG['password'])
-  logger.info("Connecting to: " + MQTT_CONFIG['host'] + " at " + str(MQTT_CONFIG['port']))
-  client.connect(MQTT_CONFIG['host'], MQTT_CONFIG['port'], 60)
 
   def on_connect(client, userdata, flags, rc):
-    logger.info("Subscribing to topic: " + RF_CONFIG['topic'])
-    client.subscribe(RF_CONFIG['topic'])
+    logger.info("Subscribing to topic: " + RF_CONFIG['command_topic'])
+    client.subscribe(RF_CONFIG['command_topic'])
+    send_state(client)
 
   def on_message(client, userdata, msg):
-    if msg.topic == RF_CONFIG['topic']:
-      rfdevice.tx_code(int(msg.payload), RF_CONFIG['protocol'], RF_CONFIG['pulselength'])
     logger.info("Got message")
     logger.info(msg.payload)
+    if msg.topic == RF_CONFIG['command_topic']:
+      message = json.loads(msg.payload.decode('utf-8'))
+      RF_STATES[message['name']] = message['code']
+      rfdevice.tx_code(int(message['code']), RF_CONFIG['protocol'], RF_CONFIG['pulselength'])
+      send_state(client)
 
   client.on_connect = on_connect
   client.on_message = on_message
 
+  logger.info("Connecting to: " + MQTT_CONFIG['host'] + " at " + str(MQTT_CONFIG['port']))
+  client.connect(MQTT_CONFIG['host'], MQTT_CONFIG['port'], 60)
   logger.info("Starting mqtt loop...")
   client.loop_start()
   return client
