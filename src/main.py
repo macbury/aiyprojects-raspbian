@@ -31,6 +31,7 @@ import auth_helpers
 import action
 import speech
 import mimic
+import polly
 from local_assistant import LocalAssistant
 
 # =============================================================================
@@ -190,7 +191,8 @@ installed with:
   env/bin/pip install google-assistant-library==0.0.2''')
     sys.exit(1)
 
-  say = mimic.create_say(aiy.audio.get_player())
+  say = polly.create_say(aiy.audio.get_player())
+  #say = mimic.create_say(aiy.audio.get_player())
   actor = action.make_actor(say)
 
   def process_event(event):

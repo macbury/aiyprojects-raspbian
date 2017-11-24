@@ -22,10 +22,6 @@ class LocalAssistant:
     query_input = dialogflow.types.QueryInput(text=text_input)
     response = self.client.detect_intent(session=self.session, query_input=query_input)
     logger.info("Got a action: " + response.query_result.action)
-    if response.query_result.action == 'input.unknown':
-      logger.info("Unknown action, skiping to default assistant")
-      return False
-
     logger.info("Responding with: " + response.query_result.fulfillment_text)
     say(response.query_result.fulfillment_text)
     return True

@@ -57,6 +57,9 @@ class Player(object):
         if retcode:
             logger.error('aplay failed with %d', retcode)
 
+    def play_ogg(self, ogg_path):
+        subprocess.call(['play', ogg_path])     
+
     def play_wav(self, wav_path):
         """Play audio from the given WAV file.
 
