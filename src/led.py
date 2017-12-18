@@ -24,11 +24,11 @@ logger.info("Loading config: " + MQTT_CONFIG_FILE)
 MQTT_CONFIG = YAML(typ='safe').load(open(MQTT_CONFIG_FILE))
 RF_CONFIG = MQTT_CONFIG['rf_switch']
 
-RF_STATES = {}
+RF_STATES = dict()
 
 def send_state(client):
   states = json.dumps(RF_STATES)
-  logger.info("Sending states " + states)
+  logger.info("Sending states {}".format(states))
   client.publish(topic=RF_CONFIG['state_topic'], payload=states, retain=True, qos=1)
 
 def prepare_client(rfdevice):
@@ -46,8 +46,9 @@ def prepare_client(rfdevice):
     logger.info(msg.payload)
     if msg.topic == RF_CONFIG['command_topic']:
       message = json.loads(msg.payload.decode('utf-8'))
-      RF_STATES[message['name']] = message['code']
-      rfdevice.tx_code(int(message['code']), RF_CONFIG['protocol'], RF_CONFIG['pulselength'])
+      RF_STATES[str(message['name'])] = int(message['code'])
+      logger.info("RFDevice code={} protocol={} pulse_length={}".format(message['code'], RF_CONFIG['protocol'], message['pulse_length']))
+      rfdevice.tx_code(int(message['code']), RF_CONFIG['protocol'], int(message['pulse_length']))
       send_state(client)
 
   client.on_connect = on_connect
@@ -56,6 +57,7 @@ def prepare_client(rfdevice):
   logger.info("Connecting to: " + MQTT_CONFIG['host'] + " at " + str(MQTT_CONFIG['port']))
   client.connect(MQTT_CONFIG['host'], MQTT_CONFIG['port'], 60)
   logger.info("Starting mqtt loop...")
+  send_state(client)
   client.loop_start()
   return client
 

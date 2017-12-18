@@ -169,7 +169,7 @@ def main():
 
   status_ui = StatusUi(player, args.led_fifo, args.trigger_sound)
 
-  local_assistant = LocalAssistant("~/dialogflow.json", "just-sunrise-677")
+  local_assistant = LocalAssistant("~/dialogflow.json", "butlerjenkins-2400c")
   do_assistant_library(args, credentials, player, status_ui, local_assistant)
 
 
@@ -192,7 +192,6 @@ installed with:
     sys.exit(1)
 
   say = polly.create_say(aiy.audio.get_player())
-  #say = mimic.create_say(aiy.audio.get_player())
   actor = action.make_actor(say)
 
   def process_event(event):
