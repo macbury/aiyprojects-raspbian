@@ -7,12 +7,13 @@ import json
 import aiy.voicehat
 import RPi.GPIO as GPIO
 
+from rf_manager import RFController
 import paho.mqtt.client as mqtt
 from ruamel.yaml import YAML
 from rpi_rf import RFDevice
 
-logger = logging.getLogger('led')
 
+logger = logging.getLogger('led')
 CONFIG_DIR = os.getenv('XDG_CONFIG_HOME') or os.path.expanduser('~/.config')
 MQTT_CONFIG_FILE = os.path.join(CONFIG_DIR, 'mqtt.yaml')
 CONFIG_FILES = [
@@ -22,34 +23,20 @@ CONFIG_FILES = [
 
 logger.info("Loading config: " + MQTT_CONFIG_FILE)
 MQTT_CONFIG = YAML(typ='safe').load(open(MQTT_CONFIG_FILE))
-RF_CONFIG = MQTT_CONFIG['rf_switch']
 
-RF_STATES = dict()
+rf_controller = RFController(MQTT_CONFIG['rf_switch'])
 
-def send_state(client):
-  states = json.dumps(RF_STATES)
-  logger.info("Sending states {}".format(states))
-  client.publish(topic=RF_CONFIG['state_topic'], payload=states, retain=True, qos=1)
-
-def prepare_client(rfdevice):
+def prepare_client():
   client = mqtt.Client()
+  
   client.enable_logger(logger)
   client.username_pw_set(MQTT_CONFIG['username'], MQTT_CONFIG['password'])
 
   def on_connect(client, userdata, flags, rc):
-    logger.info("Subscribing to topic: " + RF_CONFIG['command_topic'])
-    client.subscribe(RF_CONFIG['command_topic'])
-    send_state(client)
+    rf_controller.setup(client)
 
   def on_message(client, userdata, msg):
-    logger.info("Got message")
-    logger.info(msg.payload)
-    if msg.topic == RF_CONFIG['command_topic']:
-      message = json.loads(msg.payload.decode('utf-8'))
-      RF_STATES[str(message['name'])] = int(message['code'])
-      logger.info("RFDevice code={} protocol={} pulse_length={}".format(message['code'], RF_CONFIG['protocol'], message['pulse_length']))
-      rfdevice.tx_code(int(message['code']), RF_CONFIG['protocol'], int(message['pulse_length']))
-      send_state(client)
+    rf_controller.handle_message(msg)
 
   client.on_connect = on_connect
   client.on_message = on_message
@@ -57,7 +44,7 @@ def prepare_client(rfdevice):
   logger.info("Connecting to: " + MQTT_CONFIG['host'] + " at " + str(MQTT_CONFIG['port']))
   client.connect(MQTT_CONFIG['host'], MQTT_CONFIG['port'], 60)
   logger.info("Starting mqtt loop...")
-  send_state(client)
+
   client.loop_start()
   return client
 
@@ -89,11 +76,9 @@ def main():
   }
   try:
     GPIO.setmode(GPIO.BCM)
-    rfdevice = RFDevice(RF_CONFIG['gpio'])
-    rfdevice.enable_tx()
 
     led = aiy.voicehat.get_led()
-    client = prepare_client(rfdevice)
+    client = prepare_client()
     logger.info("Default state sending: " + MQTT_CONFIG['topic'])
     client.publish(MQTT_CONFIG['topic'], 'ready', 2)
 
@@ -111,8 +96,8 @@ def main():
         logger.info("Pushed: " + state + " to topic " + MQTT_CONFIG['topic'])
         led.set_state(state_map[state])
       except EOFError:
-        logger.info("Waiting...")
-        time.sleep(1)
+        rf_controller.update(led)
+        time.sleep(0.1)
   except KeyboardInterrupt:
     pass
   finally:
